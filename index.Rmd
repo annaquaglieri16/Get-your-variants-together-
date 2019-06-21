@@ -158,7 +158,6 @@ super <- import_goi_superfreq(superFreq_R_path = r_path,
   min_alt = 3)
 ```
 
-
 * Reorder time variable for plotting
 
 ```{r}
@@ -174,8 +173,30 @@ ggplot(super,aes(x=Time,y=VAF,group = mutation_key,colour=mutation_key)) + geom_
   ggtitle(paste0(patientID))
 ```
 
+* Combine `superFreq` variants with clinical information
+
+```{r}
+meta <- meta %>%
+  mutate(SampleName = str_remove(string = SampleName,pattern = "M13"),
+         PID = str_remove(string = PID,pattern = "M13"),
+         SampleName = make.names(SampleName))
+
+super <- super %>%
+  left_join(meta)
+```
+
 
 # Combine SNVs with INDELs
+
+* Awkward problem with file names to be standardised
+
+```{r}
+indels_to_plot <- indels_to_plot %>%
+  mutate(SampleName = str_remove(string = SampleName,pattern = "M13"),
+         PID = str_remove(string = PID,pattern = "M13"),
+         SampleName = make.names(SampleName))
+```
+
 
 ```{r message=FALSE,warning=FALSE}
 combine_variants <- super %>%
