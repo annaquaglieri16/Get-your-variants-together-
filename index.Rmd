@@ -1,13 +1,39 @@
 ---
-title: "index"
+title: "Example varikondo: CBF AML cohort"
 author: "Anna Quaglieri"
-date: "20/05/2019"
-output: html_document
+date: "10/06/2019"
+output: 
+  html_document:
+    theme: cosmo
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,message = FALSE,warning = FALSE)
 ```
+
+```{r eval=FALSE,include=FALSE}
+library(devtools)
+devtools::install_github("annaquaglieri16/varikondo")
+```
+
+
+```{r eval=FALSE,echo=FALSE}
+library(tidyverse)
+master <- read_csv("../../../../data_infos/ALLG_clinical_infos/master_spread_bam_variants_links.csv")
+clinical <- master %>%
+  dplyr::select(SampleName,PID,gender,BM.Blast,Age,cbf_type,Outcome)
+example <- clinical %>%
+  filter(PID %in% "M13MMN04CMC") %>%
+  mutate(Outcome = ifelse(Outcome %in% "1","Relapse",Outcome)) %>%
+  separate(SampleName,into = c("SID","Repl.Within","batch","PID","Tissue","Time"),sep="[.]",remove=FALSE) %>%
+  dplyr::rename(Blast = BM.Blast)
+  
+write_csv(example,"example-metadata.csv")
+```
+
+# Import variants - VarDict
+
+## Metadata
 
 ```{r}
 library(tidyverse)
@@ -17,5 +43,156 @@ library(knitr)
 meta <- read_csv("example-metadata.csv")
 
 kable(meta)
+```
+
+## VCF files
+
+```{r}
+# Vardict variants 
+vcfs <- list.files("../../../../variant_calling/vardict/regions_deDupl_both_cohorts/annotated_variants",pattern = "annotated.vcf$",full.names = TRUE)
+vcfs_test <- vcfs[grep("M13MMN04CMC",vcfs)]
+vcfs_test
+```
+
+
+```{r}
+sample_names <- gsub("_germline_annotated.vcf","",basename(vcfs_test))
+sample_names
+```
+
+## `varikondo::import_vcf_output`
+
+```{r}
+# Read in and parse vardict variants
+
+parse_vcf <- vector("list",length(vcfs_test))
+
+for(i in 1:length(vcfs_test)){
+  
+parse_vcf[[i]] <- varikondo::parse_vcf_output(
+                 vcf_path = vcfs_test[i],
+                 sample_name = sample_names[i],
+                 caller = "vardict",
+                 vep = TRUE)
+}
+
+combine_vardict <- bind_rows(parse_vcf)
+
+kable(head(combine_vardict))
+```
+
+
+* Different number of variants per sample
+
+```{r}
+table(combine_vardict$SampleName)
+```
+
+
+* Create SampleName, Patient ID and Time columns to match metadata
+
+```{r}
+combine_vardict <- combine_vardict %>%
+  separate(SampleName , into = c("SID","Repl.Within","batch","PID","Tissue","Time"),remove=FALSE,sep="[.]")
+```
+
+
+# Combine, filter and plot: varikondo::import_any
+
+```{r}
+patientID <- "M13MMN04CMC"
+indels_to_plot <- varikondo::import_any(variants = combine_vardict,
+                                        patientID = patientID,
+                                        minQual = 20,
+                                        clinicalData = meta,
+                                        studyGenes = "KIT", 
+                                        min_vaf = 0.05,
+                                        min_alt = 2,
+                                        variant_type = "vardict")
+
+# Reorder time variable
+indels_to_plot <- indels_to_plot %>%
+  mutate(Time = fct_relevel(Time,"Dia","Rem","Rel"))
+
+kable(head(indels_to_plot))
+```
+
+
+## Plot over time 
+
+```{r}
+table(indels_to_plot$SampleName)
+```
+
+
+```{r}
+ggplot(indels_to_plot,aes(x=Time,y=VAF,group = mutation_key,colour=mutation_det)) + geom_point() + theme_bw() +
+  geom_line() + theme(axis.text.x = element_text(angle = 45, hjust = 1,size=8)) +
+  ggtitle(paste0(patientID," - KIT"))
+```
+
+
+# superFreq output: `varikondo::import_goi_superfreq`
+
+
+```{r}
+r_path <- "/Volumes/AML_RNA/cbf_aml_agrf/superFreq/R_full_cohort"
+meta_path <- "/Volumes/AML_RNA/cbf_aml_agrf/superFreq/runFullCohort/metadata_varscan.tsv"
+```
+
+```{r}
+list.dirs(r_path,recursive = FALSE)
+```
+
+* Extract 3 genes of interest for patient `MMN04CMC`
+
+```{r}
+patientID <- "MMN04CMC"
+
+super <- import_goi_superfreq(superFreq_R_path = r_path,
+  superFreq_meta_path = meta_path,
+  patientID = patientID,
+  studyGenes = c("MN1","IDH2","JAK2"),
+  ref_genome = "hg38",
+  min_vaf = 0.05,
+  min_alt = 3)
+```
+
+
+* Reorder time variable for plotting
+
+```{r}
+super <- super %>%
+  mutate(Time = fct_relevel(Time,"Dia","Rem","Rel"))
+
+kable(head(super))
+```
+
+```{r}
+ggplot(super,aes(x=Time,y=VAF,group = mutation_key,colour=mutation_key)) + geom_point() + theme_bw() +
+  geom_line() + theme(axis.text.x = element_text(angle = 45, hjust = 1,size=8)) +
+  ggtitle(paste0(patientID))
+```
+
+
+# Combine SNVs with INDELs
+
+```{r message=FALSE,warning=FALSE}
+combine_variants <- super %>%
+  bind_rows(indels_to_plot) %>%
+  mutate(Blast = 0)
+
+write_csv(combine_variants,"example-variants-explore.csv")
+```
+
+# Explore with `shiny-clone`
+
+https://shiny.wehi.edu.au/quaglieri.a/shiny-clone/
+
+
+# Session info
+
+```{r}
+sessionInfo()
 ```
 

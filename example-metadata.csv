@@ -1,0 +1,4 @@
+SampleName,SID,Repl.Within,batch,PID,Tissue,Time,gender,Blast,Age,cbf_type,Outcome
+48.R1.B1.M13MMN04CMC.PB.Dia,48,R1,B1,M13MMN04CMC,PB,Dia,Female,79,48,inv(16),Relapse
+50.R1.B1.M13MMN04CMC.PB.Rem,50,R1,B1,M13MMN04CMC,PB,Rem,Female,79,48,inv(16),Relapse
+51.R1.B1.M13MMN04CMC.BM.Rel,51,R1,B1,M13MMN04CMC,BM,Rel,Female,79,48,inv(16),Relapse
